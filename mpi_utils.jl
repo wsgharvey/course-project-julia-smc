@@ -24,3 +24,38 @@ function collect(item, comm)
     end
     return all_received
 end
+
+function collate(items, indices)
+    s = [size(items)...]
+    s[1] = size(indices, 1)
+    collation = Array{Float64}(undef, (s...))
+    for (i, index) in enumerate(indices)
+        collation[i] = items[index]
+    end
+    return collation
+end
+
+function share_out(items, allocate_to, per_proc_shape, comm)
+    """
+    rank 0 shares out items between everyone
+    - `items` can be None for all but rank 0
+    - `allocate_to` is list of item indexes for each process
+    """
+    rank = MPI.Comm_rank(comm)
+    n_proc = MPI.Comm_size(comm)
+    n_items = size(allocate_to, 1)
+    received = Array{Float64}(undef, per_proc_shape)
+    if rank != 0
+        rreq = MPI.Irecv!(received, 0, rank+32, comm)
+        MPI.Waitall!([rreq])
+        return received
+    end
+    per_proc = per_proc_shape[1]
+    own_stuff = collate(items, allocate_to[1:per_proc])
+    for worker in 1:(n_proc-1)
+        to_send = collate(items, allocate_to[1+(worker*per_proc):(1+worker)*per_proc])
+        MPI.Send(to_send, worker, worker+32, comm)
+    end
+    return own_stuff
+end
+
