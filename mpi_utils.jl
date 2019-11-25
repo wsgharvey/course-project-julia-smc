@@ -59,3 +59,21 @@ function share_out(items, allocate_to, per_proc_shape, comm)
     return own_stuff
 end
 
+function send_bool(mesg, comm)
+    """
+    send a bool from rank 0 to all others
+    """
+    rank = MPI.Comm_rank(comm)
+    n_proc = MPI.Comm_size(comm)
+    mesg_array = Array{Bool}(undef, 1)
+    if rank != 0
+        rreq = MPI.Irecv!(mesg_array, 0, rank+32, comm)
+        MPI.Waitall!([rreq])
+        return mesg_array[1]
+    end
+    mesg_array[1] = mesg
+    for worker in 1:(n_proc-1)
+        MPI.Send(mesg_array, worker, worker+32, comm)
+    end
+    return mesg
+end

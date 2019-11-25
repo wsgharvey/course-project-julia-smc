@@ -15,11 +15,7 @@ function logsumexp(w, keep_dims::Bool)
     end
 end
 
-function ESS(logw, comm)
-    rank = MPI.Comm_rank(comm)
-    if rank != 0
-        return 0
-    end
+function ESS(logw)
     w = exp.(logw)
     return sum(w)^2 / sum(w.^2)
 end

@@ -10,27 +10,47 @@ We have a series of distributions 0...T, represented by
 2. unnormalised likelihood functions for each distribution thereafter.
 =#
 
+# high-level functions ---------------------------------------------------
+
 function collect_weights(logw, comm, δlogw)
     return logw + collect(δlogw, comm)
 end
 
-function resample(logw, samples, comm)
+function maybe_resample(logw, samples, comm)
     rank = MPI.Comm_rank(comm)
-    all_samples = collect(samples, comm)
+    if rank == 0
+        ess = ESS(logw)
+        dont_resample = ess > size(logw, 1)/2
+    else
+        dont_resample = true
+    end
+    dont_resample = send_bool(dont_resample, comm)
+    if dont_resample
+        return (samples, logw)
+    end
 
+    # TODO resample without sending them all through rank 0
+    all_samples = collect(samples, comm)
     if rank == 0
         new_indices = resample_indices(logw)
     else
         new_indices = 0
     end
-
+    println("$all_samples\n")
     samples = share_out(all_samples, new_indices, size(samples), comm)
-
-    if rank == 0
-        print("$all_samples \n $logw \n\n")
-    end
-
     return (samples, 0*logw)
+end
+
+function rejuvenate(samples, logpdf_func)
+    logpdf1 = logpdf_func(samples)
+    perturb_dist = Distributions.Normal(0, 0.1)
+    proposed_samples = samples + rand(perturb_dist, size(samples))
+    logpdf2 = logpdf_func(proposed_samples)
+    α = logpdf2 .> logpdf1
+    α = exp.(α.*(α.<0))
+    accept = rand(Distributions.Uniform(), size(α)) < α
+    samples = proposed_samples*accept + samples*(1-accept)
+    return samples
 end
 
 # define series of distributions -----------------------------------------
@@ -44,8 +64,8 @@ function logpdf(alpha::Float64, x)
     =#
     priorpdf = Distributions.logpdf.(prior, x[:, 1])
     function finalpdf(x)
-        return logsumexp(hcat(Distributions.logpdf.(Distributions.Normal(-5., .3), x[:, 1]),
-                              Distributions.logpdf.(Distributions.Normal(5., .3), x[:, 1])),
+        return logsumexp(hcat(Distributions.logpdf.(Distributions.Normal(-5., .1), x[:, 1]),
+                              Distributions.logpdf.(Distributions.Normal(5., .1), x[:, 1])),
                          false)
     end
     return alpha*finalpdf(x) + (1-alpha)*priorpdf
@@ -56,7 +76,7 @@ MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 n_processes = MPI.Comm_size(comm)
-particles_per_process = 40
+particles_per_process = 2
 n_particles = particles_per_process * n_processes
 
 δlogw = Array{Float64}(undef, 1)
@@ -69,13 +89,16 @@ end
 
 samples = sample_prior(particles_per_process)
 
-δα = 0.5
+δα = 0.02
 for α in δα:δα:1
     global logw, samples
     δlogw = logpdf(α, samples) - logpdf(α-δα, samples)
     logw = collect_weights(logw, comm, δlogw)
+    samples, logw = maybe_resample(logw, samples, comm)
 
-    samples, logw = resample(logw, samples, comm)
+    logpdf_func(x) = logpdf(α, x)
+    samples = rejuvenate(samples, logpdf_func)
+
 end
 
 MPI.Barrier(comm)
