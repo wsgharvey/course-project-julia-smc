@@ -2,7 +2,7 @@ using MPI
 import Distributions
 
 include("mpi_utils.jl")
-
+include("smc_utils.jl")
 
 #=
 We have a series of distributions 0...T, represented by
@@ -10,32 +10,8 @@ We have a series of distributions 0...T, represented by
 2. unnormalised likelihood functions for each distribution thereafter.
 =#
 
-function logsumexp(w, keep_dims::Bool)
-    """
-    w is a B x S array
-    sum over S dimension (and keeps it as a single-element dimension)
-    """
-    lastdim = ndims(w)
-    maxw = maximum(w, dims=lastdim)
-    result = log.(sum(exp.(w.-maxw), dims=lastdim)).+maxw
-    if keep_dims
-        return result
-    else
-        return dropdims(result, dims=lastdim)
-    end
-end
-
 function collect_weights(logw, comm, δlogw)
     return logw + collect(δlogw, comm)
-end
-
-function ESS(logw, comm)
-    rank = MPI.Comm_rank(comm)
-    if rank != 0
-        return 0
-    end
-    w = exp.(logw)
-    return sum(w)^2 / sum(w.^2)
 end
 
 function resample(logw, samples, comm)
@@ -48,27 +24,17 @@ function resample(logw, samples, comm)
         return 0
     end
 
-    logZ = logsumexp(logw, true)
-    p = exp.(logw.-logZ)
-    cat = Distributions.Categorical(p)
-    indices = rand(cat, size(p))
-    logw = logw * 0
-
+    new_indices = resample_indices(logw)
     latentdim = size(samples, 2)
     for worker in 1:(n_processes-1)
         worker_samples = Array{Float64}(undef, particles_per_process, latentdim)
         for sample in 1:particles_per_process
             full_index = sample + worker*particles_per_process
-            worker_samples[sample] = all_samples[indices[full_index]]
+            worker_samples[sample] = all_samples[new_indices[full_index]]
         end
         MPI.Send(worker_samples, worker, worker+32, comm)
     end
-
-    return logw
-end
-
-function update_values()
-    return 0
+    return 0*logw
 end
 
 # define series of distributions -----------------------------------------
@@ -89,6 +55,7 @@ function logpdf(alpha::Float64, x)
     return alpha*finalpdf(x) + (1-alpha)*priorpdf
 end
 
+# do SMC -----------------------------------------------------------------
 MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
