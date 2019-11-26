@@ -1,6 +1,7 @@
 using Flux, Flux.Data.MNIST, Statistics
 using Flux: throttle, params
 using Juno: @progress
+using BSON: @save, @load
 
 # Extend distributions slightly to have a numerically stable logpdf for `p` close to 1 or 0.
 using Distributions
@@ -50,9 +51,12 @@ evalcb = throttle(() -> @show(-L̄(X[:, rand(1:N, M)])), 30)
 opt = ADAM()
 ps = params(A, μ, logσ, f)
 
+@load "ckpt/f.bson" f
 @progress for i = 1:20
+  global f
   @info "Epoch $i"
   Flux.train!(loss, ps, zip(data), opt, cb=evalcb)
+  @save "ckpt/f.bson" f
 end
 
 
