@@ -1,10 +1,8 @@
 using Flux
 using BSON: @load
+using Distributions
 
 include("nn.jl")
-
-# Latent dimensionality, # hidden units.
-Dz, Dh = 5, 500
 
 # Components of recognition model / "encoder" MLP.
 A, μ, logσ = Dense(28^2, Dh, tanh), Dense(Dh, Dz), Dense(Dh, Dz)
@@ -15,12 +13,29 @@ z(μ, logσ) = μ + exp(logσ) * randn(Float32)
 f = Chain(Dense(Dz, Dh, tanh), Dense(Dh, 28^2, σ))
 @load "ckpt/generator.bson" f
 
-################################# Sample Output ##############################
+function sample_z_prior()
+    global Dz
+    return z.(zeros(Dz), zeros(Dz))
+end
 
-using Images
+function logpdf_joint(obs_mask, obs, z)
+    global f
+    # p(z)
+    log_p_z = sum(Distributions.logpdf.(Distributions.Normal(), z))
+    x̂ = f(z)
+    ŷ = obs_mask .* x̂
+    obs = obs_mask .* obs
+    # p(y | z)
+    log_p_y_z = sum(Distributions.logpdf.(Distributions.Bernoulli.(ŷ), obs))
+    return log_p_z .+ log_p_y_z
+end
 
-img(x) = Gray.(reshape(x, 28, 28))
+# ################################# Sample Output ##############################
 
-cd(@__DIR__)
-sample = hcat(img.([modelsample() for i = 1:10])...)
-save("sample.png", sample)
+# using Images
+
+# img(x) = Gray.(reshape(x, 28, 28))
+
+# cd(@__DIR__)
+# sample = hcat(img.([modelsample() for i = 1:10])...)
+# save("sample.png", sample)
