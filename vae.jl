@@ -17,7 +17,7 @@ data = [X[:,i] for i in Iterators.partition(1:N,M)]
 ################################# Define Model #################################
 
 # Latent dimensionality, # hidden units.
-Dz, Dh = 5, 500
+Dz, Dh = 5, 4000
 
 # Components of recognition model / "encoder" MLP.
 A, μ, logσ = Dense(28^2, Dh, tanh), Dense(Dh, Dz), Dense(Dh, Dz)
@@ -26,7 +26,6 @@ z(μ, logσ) = μ + exp(logσ) * randn(Float32)
 
 # Generative model / "decoder" MLP.
 f = Chain(Dense(Dz, Dh, tanh), Dense(Dh, 28^2, σ))
-
 
 ####################### Define ways of doing things with the model. #######################
 
@@ -42,12 +41,12 @@ L̄(X) = ((μ̂, logσ̂) = g(X); (logp_x_z(X, z.(μ̂, logσ̂)) - kl_q_p(μ̂,
 loss(X) = -L̄(X) + 0.01f0 * sum(x->sum(x.^2), params(f))
 
 # Sample from the learned model.
-modelsample() = rand.(Bernoulli.(f(z.(zeros(Dz), zeros(Dz)))))
+modelsample() = f(z.(zeros(Dz), zeros(Dz)))
 
 
 ################################# Load Parameters ##############################
 
-@load "ckpt/f.bson" f
+@load "ckpt/generator.bson" f
 
 ################################# Sample Output ##############################
 
