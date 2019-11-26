@@ -17,7 +17,7 @@ data = [X[:,i] for i in Iterators.partition(1:N,M)]
 ################################# Define Model #################################
 
 # Latent dimensionality, # hidden units.
-Dz, Dh = 5, 4000
+Dz, Dh = 5, 500
 
 # Components of recognition model / "encoder" MLP.
 A, μ, logσ = Dense(28^2, Dh, tanh), Dense(Dh, Dz), Dense(Dh, Dz)
@@ -48,7 +48,7 @@ modelsample() = rand.(Bernoulli.(f(z.(zeros(Dz), zeros(Dz)))))
 ################################# Learn Parameters ##############################
 
 evalcb = throttle(() -> @show(-L̄(X[:, rand(1:N, M)])), 30)
-opt = ADAM(3e-5)
+opt = ADAM()
 ps = params(A, μ, logσ, f)
 
 @progress for i = 1:20
@@ -57,14 +57,3 @@ ps = params(A, μ, logσ, f)
   Flux.train!(loss, ps, zip(data), opt, cb=evalcb)
   @save "ckpt/generator.bson" f
 end
-
-
-################################# Sample Output ##############################
-
-using Images
-
-img(x) = Gray.(reshape(x, 28, 28))
-
-cd(@__DIR__)
-sample = hcat(img.([modelsample() for i = 1:10])...)
-save("sample.png", sample)
