@@ -1,6 +1,8 @@
 using MPI
 import Distributions
 
+include("mpi_utils.jl")
+include("smc_utils.jl")
 
 #=
 We have a series of distributions 0...T, represented by
@@ -8,74 +10,103 @@ We have a series of distributions 0...T, represented by
 2. unnormalised likelihood functions for each distribution thereafter.
 =#
 
-function logsumexp(w)
-    """
-    w is a B x S array
-    does sum over S dimension
-    """
-    maxw = maximum(w, dims=2)
-    return log.(sum(exp.(w.-maxw), dims=2)).+maxw
-end
+# high-level functions ---------------------------------------------------
 
 function collect_weights(logw, comm, δlogw)
-    rank = MPI.Comm_rank(comm)
-    n_processes = MPI.Comm_size(comm)
-    if rank != 0
-        MPI.Send(δlogw, 0, rank+32, comm)
-        return 0
-    else
-        particles_per_process = size(δlogw, 1)
-        logw[1:particles_per_process] = logw[1:particles_per_process]+δlogw
-        received = Array{Float64}(undef, particles_per_process)
-        for worker in 1:(n_processes-1)       # awful
-            rreq = MPI.Irecv!(received, worker, worker+32, comm)
-            MPI.Waitall!([rreq])
-            logw[1+(worker*particles_per_process):(worker+1)*particles_per_process] =
-                logw[1+(worker*particles_per_process):(worker+1)*particles_per_process]+received
-        end
-        return logw
-    end
+    return logw + collect(δlogw, comm)
 end
 
-function update_values()
-    return 0
+function resample(logw, samples, comm)
+    # TODO resample without sending them all through rank 0
+    all_samples = collect(samples, comm)
+    if rank == 0
+        new_indices = resample_indices(logw)
+    else
+        new_indices = 0
+    end
+    samples = share_out(all_samples, new_indices, size(samples), comm)
+    return (samples, 0*logw)
+end
+
+function maybe_resample(logw, samples, comm)
+    rank = MPI.Comm_rank(comm)
+    if rank == 0
+        ess = ESS(logw)
+        dont_resample = ess > size(logw, 1)/2
+    else
+        dont_resample = true
+    end
+    dont_resample = send_bool(dont_resample, comm)
+    if dont_resample
+        return (samples, logw)
+    end
+    return resample(logw, samples, comm)
+end
+
+function rejuvenate(samples, logpdf_func)
+    logpdf1 = logpdf_func(samples)
+    perturb_dist = Distributions.Normal(0, 0.1)
+    proposed_samples = samples + rand(perturb_dist, size(samples))
+    logpdf2 = logpdf_func(proposed_samples)
+    α = exp.(logpdf2-logpdf1)
+    accept = rand(Distributions.Uniform(), size(α)) .< α
+    samples = proposed_samples.*accept + samples.*(1 .- accept)
+    return samples
 end
 
 # define series of distributions -----------------------------------------
-prior = Distributions.Normal(1, sqrt(5))
+prior = Distributions.Normal(0, 5)
+function sample_prior(batchsize)
+    return rand(prior, batchsize, 1)
+end
 function logpdf(alpha::Float64, x)
     #=
     alpha in [0, 1]. alpha = 0 is prior, alpha = 1 is final dist.
     =#
-    priorpdf = Distributions.logpdf.(prior, x)
+    priorpdf = Distributions.logpdf.(prior, x[:, 1])
     function finalpdf(x)
-        return logsumexp(hcat(Distributions.logpdf.(Distributions.Normal(-10., 0.5), x),
-                              Distributions.logpdf.(Distributions.Normal(10., 0.5), x)))
+        return logsumexp(hcat(Distributions.logpdf.(Distributions.Normal(-5., .1), x[:, 1]),
+                              Distributions.logpdf.(Distributions.Normal(5., .1), x[:, 1])),
+                         false)
     end
     return alpha*finalpdf(x) + (1-alpha)*priorpdf
 end
 
+# do SMC -----------------------------------------------------------------
 MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 n_processes = MPI.Comm_size(comm)
-particles_per_process = 2
+particles_per_process = 20
 n_particles = particles_per_process * n_processes
 
 δlogw = Array{Float64}(undef, 1)
 δlogw[1] = 1
-logw = zeros(n_particles)
+if rank == 0
+    logw = zeros(n_particles)
+else
+    logw = 0
+end
 
-samples = rand(prior, particles_per_process)
+samples = sample_prior(particles_per_process)
 
-δα = 0.1
+δα = 0.0002
 for α in δα:δα:1
-    global logw
+    global logw, samples
     δlogw = logpdf(α, samples) - logpdf(α-δα, samples)
     logw = collect_weights(logw, comm, δlogw)
-    if rank == 0
-        println(logw)
-    end
+    samples, logw = maybe_resample(logw, samples, comm)
+
+    logpdf_func(x) = logpdf(α, x)
+    samples = rejuvenate(samples, logpdf_func)
+
+end
+
+samples, _ = resample(logw, samples, comm)
+
+samples = collect(samples, comm)
+if rank == 0
+    println(samples, '\n')
 end
 
 MPI.Barrier(comm)
