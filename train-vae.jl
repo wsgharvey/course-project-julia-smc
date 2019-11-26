@@ -17,7 +17,7 @@ data = [X[:,i] for i in Iterators.partition(1:N,M)]
 ################################# Define Model #################################
 
 # Latent dimensionality, # hidden units.
-Dz, Dh = 5, 500
+Dz, Dh = 50, 400
 
 # Components of recognition model / "encoder" MLP.
 A, μ, logσ = Dense(28^2, Dh, tanh), Dense(Dh, Dz), Dense(Dh, Dz)
@@ -51,12 +51,11 @@ evalcb = throttle(() -> @show(-L̄(X[:, rand(1:N, M)])), 30)
 opt = ADAM()
 ps = params(A, μ, logσ, f)
 
-@load "ckpt/f.bson" f
 @progress for i = 1:20
   global f
   @info "Epoch $i"
   Flux.train!(loss, ps, zip(data), opt, cb=evalcb)
-  @save "ckpt/f.bson" f
+  @save "ckpt/generator.bson" f
 end
 
 
