@@ -16,6 +16,18 @@ function collect_weights(logw, comm, δlogw)
     return logw + collect(δlogw, comm)
 end
 
+function resample(logw, samples, comm)
+    # TODO resample without sending them all through rank 0
+    all_samples = collect(samples, comm)
+    if rank == 0
+        new_indices = resample_indices(logw)
+    else
+        new_indices = 0
+    end
+    samples = share_out(all_samples, new_indices, size(samples), comm)
+    return (samples, 0*logw)
+end
+
 function maybe_resample(logw, samples, comm)
     rank = MPI.Comm_rank(comm)
     if rank == 0
@@ -28,17 +40,7 @@ function maybe_resample(logw, samples, comm)
     if dont_resample
         return (samples, logw)
     end
-
-    # TODO resample without sending them all through rank 0
-    all_samples = collect(samples, comm)
-    if rank == 0
-        new_indices = resample_indices(logw)
-    else
-        new_indices = 0
-    end
-    println("$all_samples\n")
-    samples = share_out(all_samples, new_indices, size(samples), comm)
-    return (samples, 0*logw)
+    return resample(logw, samples, comm)
 end
 
 function rejuvenate(samples, logpdf_func)
@@ -46,10 +48,9 @@ function rejuvenate(samples, logpdf_func)
     perturb_dist = Distributions.Normal(0, 0.1)
     proposed_samples = samples + rand(perturb_dist, size(samples))
     logpdf2 = logpdf_func(proposed_samples)
-    α = logpdf2 .> logpdf1
-    α = exp.(α.*(α.<0))
-    accept = rand(Distributions.Uniform(), size(α)) < α
-    samples = proposed_samples*accept + samples*(1-accept)
+    α = exp.(logpdf2-logpdf1)
+    accept = rand(Distributions.Uniform(), size(α)) .< α
+    samples = proposed_samples.*accept + samples.*(1 .- accept)
     return samples
 end
 
@@ -76,7 +77,7 @@ MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 n_processes = MPI.Comm_size(comm)
-particles_per_process = 2
+particles_per_process = 20
 n_particles = particles_per_process * n_processes
 
 δlogw = Array{Float64}(undef, 1)
@@ -89,7 +90,7 @@ end
 
 samples = sample_prior(particles_per_process)
 
-δα = 0.02
+δα = 0.0002
 for α in δα:δα:1
     global logw, samples
     δlogw = logpdf(α, samples) - logpdf(α-δα, samples)
@@ -99,6 +100,13 @@ for α in δα:δα:1
     logpdf_func(x) = logpdf(α, x)
     samples = rejuvenate(samples, logpdf_func)
 
+end
+
+samples, _ = resample(logw, samples, comm)
+
+samples = collect(samples, comm)
+if rank == 0
+    println(samples, '\n')
 end
 
 MPI.Barrier(comm)
