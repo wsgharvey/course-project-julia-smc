@@ -3,6 +3,7 @@ import Distributions
 
 include("mpi_utils.jl")
 include("smc_utils.jl")
+include("model.jl")
 
 #=
 We have a series of distributions 0...T, represented by
@@ -17,7 +18,6 @@ function collect_weights(logw, comm, δlogw)
 end
 
 function resample(logw, samples, comm)
-    # TODO resample without sending them all through rank 0
     all_samples = collect(samples, comm)
     if rank == 0
         new_indices = resample_indices(logw)
@@ -55,29 +55,24 @@ function rejuvenate(samples, logpdf_func)
 end
 
 # define series of distributions -----------------------------------------
-prior = Distributions.Normal(0, 5)
-function sample_prior(batchsize)
-    return rand(prior, batchsize, 1)
-end
 function logpdf(alpha::Float64, x)
-    #=
-    alpha in [0, 1]. alpha = 0 is prior, alpha = 1 is final dist.
-    =#
-    priorpdf = Distributions.logpdf.(prior, x[:, 1])
-    function finalpdf(x)
-        return logsumexp(hcat(Distributions.logpdf.(Distributions.Normal(-5., .1), x[:, 1]),
-                              Distributions.logpdf.(Distributions.Normal(5., .1), x[:, 1])),
-                         false)
-    end
-    return alpha*finalpdf(x) + (1-alpha)*priorpdf
+    # select observations
+    obs = 1
+    obs_mask = zeros(784)
+    obs_mask[1+28*10:28*11] = ones(28)
+    obs = zeros(784)
+    obs[1+28*10:28*11] = cat(zeros(8), ones(4), zeros(4), ones(4), zeros(8), dims=1)
+    # calculate stuff
+    return logpdf_prior(x) .+ alpha*logpdf_obs(obs_mask, obs, x)
 end
+
 
 # do SMC -----------------------------------------------------------------
 MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 n_processes = MPI.Comm_size(comm)
-particles_per_process = 20
+particles_per_process = 3
 n_particles = particles_per_process * n_processes
 
 δlogw = Array{Float64}(undef, 1)
@@ -90,7 +85,7 @@ end
 
 samples = sample_prior(particles_per_process)
 
-δα = 0.0002
+δα = 0.04
 for α in δα:δα:1
     global logw, samples
     δlogw = logpdf(α, samples) - logpdf(α-δα, samples)

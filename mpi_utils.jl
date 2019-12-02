@@ -16,11 +16,11 @@ function collect(item, comm)
     s[1] = s[1] * n_proc
     all_received = Array{Float64}(undef, (s...))
     item_received = Array{Float64}(undef, size(item))
-    all_received[1:per_proc] = item
+    all_received[1:per_proc, :] = item
     for worker in 1:(n_proc-1)
         rreq = MPI.Irecv!(item_received, worker, worker+32, comm)  # awful
         MPI.Waitall!([rreq])
-        all_received[1+(worker*per_proc):(worker+1)*per_proc] = item_received
+        all_received[1+(worker*per_proc):(worker+1)*per_proc, :] = item_received
     end
     return all_received
 end
@@ -30,7 +30,7 @@ function collate(items, indices)
     s[1] = size(indices, 1)
     collation = Array{Float64}(undef, (s...))
     for (i, index) in enumerate(indices)
-        collation[i] = items[index]
+        collation[i, :] = items[index, :]
     end
     return collation
 end

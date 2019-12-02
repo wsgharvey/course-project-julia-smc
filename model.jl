@@ -13,21 +13,30 @@ z(μ, logσ) = μ + exp(logσ) * randn(Float32)
 f = Chain(Dense(Dz, Dh, tanh), Dense(Dh, 28^2, σ))
 @load "ckpt/generator.bson" f
 
-function sample_z_prior()
+function sample_prior(batchdim)
     global Dz
-    return z.(zeros(Dz), zeros(Dz))
+    return z.(zeros(batchdim, Dz), zeros(batchdim, Dz))
 end
 
-function logpdf_joint(obs_mask, obs, z)
-    global f
-    # p(z)
-    log_p_z = sum(Distributions.logpdf.(Distributions.Normal(), z))
-    x̂ = f(z)
-    ŷ = obs_mask .* x̂
-    obs = obs_mask .* obs
-    # p(y | z)
-    log_p_y_z = sum(Distributions.logpdf.(Distributions.Bernoulli.(ŷ), obs))
-    return log_p_z .+ log_p_y_z
+function logpdf_prior(z)
+    return sum(Distributions.logpdf.(Distributions.Normal(), z), dims=2)[:, 1]
+end
+
+function logpdf_obs(obs_mask, obs, zz)
+    """
+    z should have a batch dimension
+    """
+    function single_logpdf_joint(obs_mask, obs, zzz)
+        global f
+        # p(z)
+        x̂ = f(zzz).data
+        ŷ = obs_mask .* x̂
+        obs = obs_mask .* obs
+        # p(y | z)
+        log_p_y_z = sum(Distributions.logpdf.(Distributions.Bernoulli.(ŷ), obs))
+        return log_p_y_z
+    end
+    return [single_logpdf_joint(obs_mask, obs, zz[i, :]) for i in 1:size(zz, 1)]
 end
 
 # ################################# Sample Output ##############################
