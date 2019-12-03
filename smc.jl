@@ -57,14 +57,18 @@ end
 # define series of distributions -----------------------------------------
 # select observations
 obs = 1
-obs_mask = zeros(784)
-obs_mask[1+28*10:28*11] = ones(28)
-obs = zeros(784)
-obs[1+28*10:28*11] = cat(zeros(8),
-                         ones(4),
-                         zeros(4),
-                         ones(4),
-                         zeros(8), dims=1)
+obs_mask = zeros(28, 28)
+obs_mask[12:15, :] = ones(28*4)
+obs_mask = reshape(obs_mask, 784)
+obs = zeros(28, 28)
+things = cat(zeros(8), ones(4),
+             zeros(4), ones(4),
+             zeros(8), dims=1)
+obs[12, :] = things
+obs[13, :] = things
+obs[14, :] = things
+obs[15, :] = things
+obs = reshape(obs, 784)
 function logpdf(alpha::Float64, x)
     global obs, obs_mask
     return logpdf_prior(x) .+ alpha*logpdf_obs(obs_mask, obs, x)
@@ -89,7 +93,7 @@ end
 
 samples = sample_prior(particles_per_process)
 
-δα = 0.001
+δα = 0.01
 for α in δα:δα:1
     global logw, samples
     δlogw = logpdf(α, samples) - logpdf(α-δα, samples)
