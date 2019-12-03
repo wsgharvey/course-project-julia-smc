@@ -26,7 +26,7 @@ empirical_distributions = {
     for steps in stepses
 }
 
-ground_truth = "empirical-posteriors/posterior-1280-1000.csv"
+ground_truth = "empirical-posteriors/ground-truth-40000-200.csv"
 
 fig, ax = plt.subplots()
 cmap = matplotlib.cm.get_cmap('cool')

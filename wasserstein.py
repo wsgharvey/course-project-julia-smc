@@ -7,6 +7,7 @@ import argparse
 
 
 def wasserstein(path1, path2):
+    import time; start = time.time()
 
     # load arrays-------------------------------------------------
     def load_csv(path):
@@ -15,14 +16,13 @@ def wasserstein(path1, path2):
     empirical2 = load_csv(path2)
 
     # create cost matrix------------------------------------------
-    def cost(p1, p2):
-        return ((p1-p2)**2).sum()
-    M = np.array([[cost(sample1, sample2)
-                   for sample2 in empirical2]
-                  for sample1 in empirical1])
+    empirical1 = np.expand_dims(empirical1, axis=0)
+    empirical2 = np.expand_dims(empirical2, axis=1)
+    M = ((empirical1-empirical2)**2).sum(axis=2)
 
     # compute Wasserstein distance--------------------------------
-    return ot.emd2([], [], M)
+    w = ot.emd2([], [], M)
+    return w
 
 
 if __name__ == '__main__':
