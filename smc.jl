@@ -80,7 +80,7 @@ MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 n_processes = MPI.Comm_size(comm)
-particles_per_process = 5
+particles_per_process = 20
 n_particles = particles_per_process * n_processes
 
 δlogw = Array{Float64}(undef, 1)
@@ -93,7 +93,7 @@ end
 
 samples = sample_prior(particles_per_process)
 
-δα = 0.1
+δα = 0.01
 for α in δα:δα:1
     global logw, samples
     δlogw = logpdf(α, samples) - logpdf(α-δα, samples)
@@ -111,6 +111,11 @@ samples = collect(samples, comm)
 if rank == 0
     println(samples, '\n')
     save_images(samples, "samples.png", obs, obs_mask)
+
+    # save posterior to csv
+    using DelimitedFiles
+    writedlm("empirical-posteriors/posterior.csv", samples, ',')
 end
 
 MPI.Barrier(comm)
+
