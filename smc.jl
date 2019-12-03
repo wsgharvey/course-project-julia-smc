@@ -93,7 +93,7 @@ end
 
 samples = sample_prior(particles_per_process)
 
-δα = 0.01
+δα = 0.1
 for α in δα:δα:1
     global logw, samples
     δlogw = logpdf(α, samples) - logpdf(α-δα, samples)
