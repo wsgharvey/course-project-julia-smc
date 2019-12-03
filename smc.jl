@@ -55,14 +55,18 @@ function rejuvenate(samples, logpdf_func)
 end
 
 # define series of distributions -----------------------------------------
+# select observations
+obs = 1
+obs_mask = zeros(784)
+obs_mask[1+28*10:28*11] = ones(28)
+obs = zeros(784)
+obs[1+28*10:28*11] = cat(zeros(8),
+                         ones(4),
+                         zeros(4),
+                         ones(4),
+                         zeros(8), dims=1)
 function logpdf(alpha::Float64, x)
-    # select observations
-    obs = 1
-    obs_mask = zeros(784)
-    obs_mask[1+28*10:28*11] = ones(28)
-    obs = zeros(784)
-    obs[1+28*10:28*11] = cat(zeros(8), ones(4), zeros(4), ones(4), zeros(8), dims=1)
-    # calculate stuff
+    global obs, obs_mask
     return logpdf_prior(x) .+ alpha*logpdf_obs(obs_mask, obs, x)
 end
 
@@ -72,7 +76,7 @@ MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 n_processes = MPI.Comm_size(comm)
-particles_per_process = 3
+particles_per_process = 5
 n_particles = particles_per_process * n_processes
 
 δlogw = Array{Float64}(undef, 1)
@@ -85,7 +89,7 @@ end
 
 samples = sample_prior(particles_per_process)
 
-δα = 0.04
+δα = 0.001
 for α in δα:δα:1
     global logw, samples
     δlogw = logpdf(α, samples) - logpdf(α-δα, samples)
@@ -102,6 +106,7 @@ samples, _ = resample(logw, samples, comm)
 samples = collect(samples, comm)
 if rank == 0
     println(samples, '\n')
+    save_images(samples, "samples.png", obs, obs_mask)
 end
 
 MPI.Barrier(comm)

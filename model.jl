@@ -39,12 +39,14 @@ function logpdf_obs(obs_mask, obs, zz)
     return [single_logpdf_joint(obs_mask, obs, zz[i, :]) for i in 1:size(zz, 1)]
 end
 
-# ################################# Sample Output ##############################
+# Image saving
 
-# using Images
+using Images
 
-# img(x) = Gray.(reshape(x, 28, 28))
-
-# cd(@__DIR__)
-# sample = hcat(img.([modelsample() for i = 1:10])...)
-# save("sample.png", sample)
+function save_images(zs, fname, obs, obs_mask)
+    cd(@__DIR__)
+    to_img(x) = Gray.(reshape(x, 28, 28))
+    image = hcat(to_img.([rand.(Bernoulli.(f(zs[i, :]).*(1. .- obs_mask).+obs.*obs_mask))
+                          for i = 1:size(zs, 1)])...)
+    save(fname, image)
+end
