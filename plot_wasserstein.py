@@ -19,7 +19,7 @@ def get_particleses(steps):
     files = glob(template)
     def get_particles(fname):
         return int(fname.replace('-', '.').split('.')[-3])
-    return [get_particles(fname) for fname in files]
+    return [get_particles(fname) for fname in files if get_particles(fname)<80000]
 
 empirical_distributions = {
     steps: get_particleses(steps)

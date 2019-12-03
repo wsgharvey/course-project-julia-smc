@@ -12,8 +12,8 @@ def wasserstein(path1, path2):
     # load arrays-------------------------------------------------
     def load_csv(path):
         return np.loadtxt(open(path, "rb"), delimiter=",", skiprows=1)
-    empirical1 = load_csv(path1)
-    empirical2 = load_csv(path2)
+    empirical1 = load_csv(path1).astype(np.float32)
+    empirical2 = load_csv(path2).astype(np.float32)
 
     # create cost matrix------------------------------------------
     empirical1 = np.expand_dims(empirical1, axis=0)
