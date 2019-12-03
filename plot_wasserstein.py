@@ -2,6 +2,7 @@ import os
 from glob import glob
 import pickle
 
+import matplotlib
 import matplotlib.pyplot as plt
 
 from wasserstein import wasserstein
@@ -28,7 +29,10 @@ empirical_distributions = {
 ground_truth = "empirical-posteriors/posterior-1280-1000.csv"
 
 fig, ax = plt.subplots()
-for steps, particleses in empirical_distributions.items():
+cmap = matplotlib.cm.get_cmap('cool')
+colors = [cmap(r/(len(stepses)-1)) for r in range(0, len(stepses))]
+
+for i, (steps, particleses) in enumerate(empirical_distributions.items()):
 
     if os.path.exists(get_cache_name(steps)):
         errors, particleses = \
@@ -43,9 +47,19 @@ for steps, particleses in empirical_distributions.items():
                     open(get_cache_name(steps), 'wb'))
         print("saved to cache")
 
-    plt.plot(particleses, errors, label=steps)
+    # sort stuff so plotting looks reasonable
+    particleses, errors = zip(*list(sorted(zip(particleses, errors))))
+    plt.plot(particleses, errors,
+             label=f"{steps} steps",
+             color=colors[i],
+             lw=2)
     print(f"plotted {steps}")
 
-plt.xscale('log')
-plt.legend()
+ax.set_xlim(5)
+ax.set_xscale('log')
+ax.set_xlabel('Number of Particles')
+ax.set_ylim(0.1)
+ax.set_yscale('log')
+ax.set_ylabel('Wasserstein-2 distance from ground truth')
+ax.legend()
 plt.savefig('posterior-qualities.pdf', bbox_inches='tight')
