@@ -6,6 +6,8 @@ include("smc_utils.jl")
 include("model.jl")
 
 #=
+arguments: n_particles per process, n_steps, posterior filename
+
 We have a series of distributions 0...T, represented by
 1. sampler for distribution 0 and
 2. unnormalised likelihood functions for each distribution thereafter.
@@ -80,7 +82,7 @@ MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 n_processes = MPI.Comm_size(comm)
-particles_per_process = 20
+particles_per_process = parse(Int, ARGS[1])
 n_particles = particles_per_process * n_processes
 
 δlogw = Array{Float64}(undef, 1)
@@ -93,7 +95,7 @@ end
 
 samples = sample_prior(particles_per_process)
 
-δα = 0.01
+δα = 1/parse(Float64, ARGS[2])
 for α in δα:δα:1
     global logw, samples
     δlogw = logpdf(α, samples) - logpdf(α-δα, samples)
@@ -102,7 +104,6 @@ for α in δα:δα:1
 
     logpdf_func(x) = logpdf(α, x)
     samples = rejuvenate(samples, logpdf_func)
-
 end
 
 samples, _ = resample(logw, samples, comm)
@@ -114,7 +115,7 @@ if rank == 0
 
     # save posterior to csv
     using DelimitedFiles
-    writedlm("empirical-posteriors/posterior.csv", samples, ',')
+    writedlm("empirical-posteriors/$(ARGS[3]).csv", samples, ',')
 end
 
 MPI.Barrier(comm)
