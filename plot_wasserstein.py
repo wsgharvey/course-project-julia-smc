@@ -25,7 +25,7 @@ empirical_distributions = {
     for steps in stepses
 }
 
-ground_truth = "empirical-posteriors/posterior-1280-1000.csv"
+ground_truth = "empirical-posteriors/ground-truth-40000-200.csv"
 
 fig, ax = plt.subplots()
 for steps, particleses in empirical_distributions.items():
