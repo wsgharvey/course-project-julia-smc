@@ -110,12 +110,14 @@ samples, _ = resample(logw, samples, comm)
 
 samples = collect(samples, comm)
 if rank == 0
-    println(samples, '\n')
-    save_images(samples, "samples.png", obs, obs_mask)
+
+    # println(samples, '\n')
+    # save_images(samples, "samples.png", obs, obs_mask)
 
     # save posterior to csv
     using DelimitedFiles
     writedlm("empirical-posteriors/$(ARGS[3]).csv", samples, ',')
+
 end
 
 MPI.Barrier(comm)
