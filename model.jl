@@ -4,6 +4,8 @@ using Distributions
 
 include("nn.jl")
 
+using CuArrays
+
 # Components of recognition model / "encoder" MLP.
 A, μ, logσ = Dense(28^2, Dh, tanh), Dense(Dh, Dz), Dense(Dh, Dz)
 g(X) = (h = A(X); (μ(h), logσ(h)))
@@ -32,6 +34,7 @@ function logpdf_obs(obs_mask, obs, zz)
     obs_mask = obs_mask |> gpu
     obs = obs |> gpu
     zz = transpose(zz) |> gpu
+    println(typeof(zz))
     x̂ = f(zz).data
     ŷ = reshape(obs_mask, size(obs_mask, 1), 1) .* x̂ |> cpu
     obs = obs_mask .* obs |> cpu

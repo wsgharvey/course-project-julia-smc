@@ -1,6 +1,5 @@
 using Flux, Flux.Data.MNIST, Statistics
 using Flux: params
-using CuArrays
 
 # Extend distributions slightly to have a numerically stable logpdf for `p` close to 1 or 0.
 using Distributions
