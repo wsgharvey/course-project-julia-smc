@@ -5,6 +5,8 @@ include("mpi_utils.jl")
 include("smc_utils.jl")
 include("model.jl")
 
+GPU = true
+
 #=
 arguments: n_particles per process, n_steps, posterior filename
 
@@ -72,7 +74,14 @@ obs[15, :] = things
 obs = reshape(obs, 784)
 function logpdf(alpha::Float64, x)
     global obs, obs_mask
-    return logpdf_prior(x) .+ alpha*logpdf_obs(obs_mask, obs, x)
+
+    if GPU
+        likelihood = logpdf_obs(obs_mask, obs, x)
+    else
+        likelihood = cpu_logpdf_obs(obs_mask, obs, x)
+    end
+
+    return logpdf_prior(x) .+ alpha*likelihood
 end
 
 
@@ -92,6 +101,8 @@ else
     logw = 0
 end
 
+starttime = time()
+
 samples = sample_prior(particles_per_process)
 
 δα = 1/parse(Float64, ARGS[2])
@@ -109,6 +120,8 @@ samples, _ = resample(logw, samples, comm)
 
 samples = collect(samples, comm)
 if rank == 0
+
+    println("\nRan in $(time()-starttime)s\n")
 
     # println(samples, '\n')
     # save_images(samples, "samples.png", obs, obs_mask)
