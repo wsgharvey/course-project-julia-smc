@@ -26,17 +26,16 @@ function logpdf_obs(obs_mask, obs, zz)
     """
     z should have a batch dimension
     """
-    function single_logpdf_joint(obs_mask, obs, zzz)
-        global f
-        # p(z)
-        x̂ = f(zzz).data
-        ŷ = obs_mask .* x̂
-        obs = obs_mask .* obs
-        # p(y | z)
-        log_p_y_z = sum(Distributions.logpdf.(Distributions.Bernoulli.(ŷ), obs))
-        return log_p_y_z
-    end
-    return [single_logpdf_joint(obs_mask, obs, zz[i, :]) for i in 1:size(zz, 1)]
+    global f
+    # p(z)
+    zz = transpose(zz)
+    x̂ = f(zz).data
+    ŷ = reshape(obs_mask, size(obs_mask, 1), 1) .* x̂
+    obs = obs_mask .* obs
+    # p(y | z)
+    log_p_y_z = [sum(Distributions.logpdf.(Distributions.Bernoulli.(ŷ[:, i]), obs))
+                 for i = 1:size(ŷ, 2)]
+    return log_p_y_z
 end
 
 # Image saving
