@@ -5,7 +5,7 @@ include("mpi_utils.jl")
 include("smc_utils.jl")
 include("model.jl")
 
-GPU = true
+GPU = parse(Bool, ARGS[4])
 
 #=
 arguments: n_particles per process, n_steps, posterior filename

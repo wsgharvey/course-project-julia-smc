@@ -3,6 +3,7 @@ using BSON: @load
 using Distributions
 
 include("nn.jl")
+using CuArrays
 
 # Components of recognition model / "encoder" MLP.
 A, μ, logσ = Dense(28^2, Dh, tanh), Dense(Dh, Dz), Dense(Dh, Dz)
@@ -12,7 +13,7 @@ z(μ, logσ) = μ + exp(logσ) * randn(Float32)
 # Generative model / "decoder" MLP.
 f = Chain(Dense(Dz, Dh, tanh), Dense(Dh, 28^2, σ))
 @load "ckpt/generator.bson" f
-f_gpu = f |> gpu
+f_gpu = mapleaves(cu, f)
 
 function sample_prior(batchdim)
     global Dz
@@ -29,13 +30,13 @@ function logpdf_obs(obs_mask, obs, zz)
     """
     global f_gpu
     # p(z)
-    obs_mask = obs_mask |> gpu
-    obs = obs |> gpu
-    zz = transpose(zz) |> gpu
-    println(typeof(zz))
+    obs_mask = cu(obs_mask)
+    obs = cu(obs)
+    zz = cu(transpose(zz))
+    # println("should be gpu ", typeof(zz))
     x̂ = f_gpu(zz).data
-    ŷ = reshape(obs_mask, size(obs_mask, 1), 1) .* x̂ |> cpu
-    obs = obs_mask .* obs |> cpu
+    ŷ = cpu(reshape(obs_mask, size(obs_mask, 1), 1) .* x̂)
+    obs = cpu(obs_mask .* obs)
     # p(y | z)
     log_p_y_z = [sum(Distributions.logpdf.(Distributions.Bernoulli.(ŷ[:, i]), obs))
                  for i = 1:size(ŷ, 2)]
@@ -51,7 +52,7 @@ function cpu_logpdf_obs(obs_mask, obs, zz)
     obs_mask = obs_mask
     obs = obs
     zz = transpose(zz)
-    println(typeof(zz))
+    # println("should be cpu ", typeof(zz))
     x̂ = f(zz).data
     ŷ = reshape(obs_mask, size(obs_mask, 1), 1) .* x̂
     obs = obs_mask .* obs
