@@ -58,7 +58,6 @@ end
 
 # define series of distributions -----------------------------------------
 # select observations
-obs = 1
 obs_mask = zeros(28, 28)
 obs_mask[12:15, :] = ones(28*4)
 obs_mask = reshape(obs_mask, 784)

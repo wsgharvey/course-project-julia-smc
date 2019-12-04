@@ -1,5 +1,6 @@
 using Flux, Flux.Data.MNIST, Statistics
 using Flux: params
+using CuArrays
 
 # Extend distributions slightly to have a numerically stable logpdf for `p` close to 1 or 0.
 using Distributions
@@ -18,7 +19,6 @@ z(μ, logσ) = μ + exp(logσ) * randn(Float32)
 
 # Generative model / "decoder" MLP.
 f = Chain(Dense(Dz, Dh, tanh), Dense(Dh, 28^2, σ))
-
 
 ####################### Define ways of doing things with the model. #######################
 

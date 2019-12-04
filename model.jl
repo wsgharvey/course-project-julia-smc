@@ -12,6 +12,7 @@ z(μ, logσ) = μ + exp(logσ) * randn(Float32)
 # Generative model / "decoder" MLP.
 f = Chain(Dense(Dz, Dh, tanh), Dense(Dh, 28^2, σ))
 @load "ckpt/generator.bson" f
+f = f |> gpu
 
 function sample_prior(batchdim)
     global Dz
@@ -28,10 +29,12 @@ function logpdf_obs(obs_mask, obs, zz)
     """
     global f
     # p(z)
-    zz = transpose(zz)
+    obs_mask = obs_mask |> gpu
+    obs = obs |> gpu
+    zz = transpose(zz) |> gpu
     x̂ = f(zz).data
-    ŷ = reshape(obs_mask, size(obs_mask, 1), 1) .* x̂
-    obs = obs_mask .* obs
+    ŷ = reshape(obs_mask, size(obs_mask, 1), 1) .* x̂ |> cpu
+    obs = obs_mask .* obs |> cpu
     # p(y | z)
     log_p_y_z = [sum(Distributions.logpdf.(Distributions.Bernoulli.(ŷ[:, i]), obs))
                  for i = 1:size(ŷ, 2)]
