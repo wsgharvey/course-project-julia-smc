@@ -57,9 +57,15 @@ for i, (steps, particleses) in enumerate(empirical_distributions.items()):
 
 ax.set_xlim(5)
 ax.set_xscale('log')
-ax.set_xlabel('Number of Particles')
+ax.set_xlabel('Number of particles')
 ax.set_ylim(0.1)
 ax.set_yscale('log')
 ax.set_ylabel('Wasserstein-2 distance from ground truth')
 ax.legend()
+
+# put on nice grid
+plt.grid(b=True, which='major', color='#666666', linestyle='-')
+plt.minorticks_on()
+plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+
 plt.savefig('posterior-qualities.pdf', bbox_inches='tight')

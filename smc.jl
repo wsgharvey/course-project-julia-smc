@@ -1,11 +1,20 @@
 using MPI
 import Distributions
 
+GPU = parse(Bool, ARGS[4])
+MPI.Init()
+comm = MPI.COMM_WORLD
+rank = MPI.Comm_rank(comm)
+if GPU
+    using CUDAnative
+    using CuArrays
+    device!(rank)
+    CuArrays.replace_device(rank)
+end
+
 include("mpi_utils.jl")
 include("smc_utils.jl")
 include("model.jl")
-
-GPU = parse(Bool, ARGS[4])
 
 #=
 arguments: n_particles per process, n_steps, posterior filename
@@ -86,9 +95,6 @@ end
 
 
 # do SMC -----------------------------------------------------------------
-MPI.Init()
-comm = MPI.COMM_WORLD
-rank = MPI.Comm_rank(comm)
 n_processes = MPI.Comm_size(comm)
 particles_per_process = parse(Int, ARGS[1])
 n_particles = particles_per_process * n_processes
