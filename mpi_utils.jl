@@ -50,13 +50,14 @@ function share_out(items, allocate_to, per_proc_shape, comm)
     end
     per_proc = per_proc_shape[1]
     own_stuff = collate(items, allocate_to[1:per_proc])
-    rreqs = [MPI.Isend(collate(items,
-                               allocate_to[1+(worker*per_proc):(1+worker)*per_proc]),
-                       worker,
-                       worker+32,
-                       comm)
-             for worker in 1:(n_proc-1)]
-    MPI.Waitall!(rreqs)
+    MPI.Waitall!([
+        MPI.Isend(
+            collate(items,
+                    allocate_to[1+(worker*per_proc):(1+worker)*per_proc]),
+            worker,
+            worker+32,
+            comm)
+        for worker in 1:(n_proc-1)])
     return own_stuff
 end
 
@@ -72,11 +73,11 @@ function send_bool(mesg, comm)
         return mesg_array[1]
     end
     mesg_array[1] = mesg
-    rreqs = [MPI.Isend(mesg_array,
-                       worker,
-                       worker+32,
-                       comm)
-             for worker in 1:(n_proc-1)]
-    MPI.Waitall!(rreqs)
+    MPI.Waitall!([
+        MPI.Isend(mesg_array,
+                  worker,
+                  worker+32,
+                  comm)
+        for worker in 1:(n_proc-1)])
     return mesg
 end
