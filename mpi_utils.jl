@@ -18,8 +18,7 @@ function collect(item, comm)
     item_received = Array{Float64}(undef, size(item))
     all_received[1:per_proc, :] = item
     for worker in 1:(n_proc-1)
-        rreq = MPI.Irecv!(item_received, worker, worker+32, comm)  # awful
-        MPI.Waitall!([rreq])
+        MPI.Recv!(item_received, worker, worker+32, comm)
         all_received[1+(worker*per_proc):(worker+1)*per_proc, :] = item_received
     end
     return all_received
@@ -46,16 +45,18 @@ function share_out(items, allocate_to, per_proc_shape, comm)
     n_items = size(allocate_to, 1)
     received = Array{Float64}(undef, per_proc_shape)
     if rank != 0
-        rreq = MPI.Irecv!(received, 0, rank+32, comm)
-        MPI.Waitall!([rreq])
+        MPI.Recv!(received, 0, rank+32, comm)
         return received
     end
     per_proc = per_proc_shape[1]
     own_stuff = collate(items, allocate_to[1:per_proc])
-    for worker in 1:(n_proc-1)
-        to_send = collate(items, allocate_to[1+(worker*per_proc):(1+worker)*per_proc])
-        MPI.Send(to_send, worker, worker+32, comm)
-    end
+    rreqs = [MPI.Isend(collate(items,
+                               allocate_to[1+(worker*per_proc):(1+worker)*per_proc]),
+                       worker,
+                       worker+32,
+                       comm)
+             for worker in 1:(n_proc-1)]
+    MPI.Waitall!(rreqs)
     return own_stuff
 end
 
@@ -67,13 +68,15 @@ function send_bool(mesg, comm)
     n_proc = MPI.Comm_size(comm)
     mesg_array = Array{Bool}(undef, 1)
     if rank != 0
-        rreq = MPI.Irecv!(mesg_array, 0, rank+32, comm)
-        MPI.Waitall!([rreq])
+        MPI.Recv!(mesg_array, 0, rank+32, comm)
         return mesg_array[1]
     end
     mesg_array[1] = mesg
-    for worker in 1:(n_proc-1)
-        MPI.Send(mesg_array, worker, worker+32, comm)
-    end
+    rreqs = [MPI.Isend(mesg_array,
+                       worker,
+                       worker+32,
+                       comm)
+             for worker in 1:(n_proc-1)]
+    MPI.Waitall!(rreqs)
     return mesg
 end
