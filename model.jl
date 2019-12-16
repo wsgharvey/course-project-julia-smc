@@ -70,6 +70,6 @@ function save_images(zs, fname, obs, obs_mask)
     cd(@__DIR__)
     to_img(x) = Gray.(reshape(x, 28, 28))
     image = hcat(to_img.([f(zs[i, :]).*(1. .- obs_mask).+obs.*obs_mask
-                          for i = 1:size(zs, 1)])...)
+                          for i = 1:10])...) #size(zs, 1)])...)
     save(fname, image)
 end

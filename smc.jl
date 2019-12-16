@@ -17,7 +17,7 @@ include("smc_utils.jl")
 include("model.jl")
 
 #=
-arguments: n_particles per process, n_steps, posterior filename
+arguments: n particles per process, n steps, file to save posterior to, filename
 
 We have a series of distributions 0...T, represented by
 1. sampler for distribution 0 and
@@ -129,7 +129,7 @@ if rank == 0
 
     println("\nRan in $(time()-starttime)s\n")
 
-    # println(samples, '\n')
+    println(samples, '\n')
     # save_images(samples, "samples.png", obs, obs_mask)
 
     # save posterior to csv
